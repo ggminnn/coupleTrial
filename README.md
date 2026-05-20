@@ -11,7 +11,7 @@
 
 | 사건 목록 | 주장 입력 | 판결 결과 |
 |:---------:|:---------:|:---------:|
-| ![cases](./docs/screenshot-cases.png) | ![chat](./docs/screenshot-chat.png) | ![verdict](./docs/screenshot-verdict.png) |
+| ![cases](./screenshot-cases.png) | ![chat](./screenshot-chat.png) | ![verdict](./screenshot-verdict.png) |
 
 ---
 
