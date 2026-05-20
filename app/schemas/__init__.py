@@ -33,6 +33,7 @@ class UserResponse(BaseModel):
 # ── Case ───────────────────────────────────────────────────
 class CaseCreate(BaseModel):
     title: str
+    judgeStyle: str = "default"
 
 
 class CaseResponse(BaseModel):
@@ -44,6 +45,7 @@ class CaseResponse(BaseModel):
     defendant_id: Optional[str]
     plaintiff_submitted: bool
     defendant_submitted: bool
+    judge_style: str = "default"
     created_at: datetime
 
     class Config:

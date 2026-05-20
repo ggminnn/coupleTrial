@@ -57,9 +57,15 @@ async def run_trial(case_id: str, db=None):
         if not plaintiff_messages or not defendant_messages:
             return
 
+        # 사건 정보 로드 (judge_style 포함)
+        case_result = await db.execute(select(Case).where(Case.id == case_id))
+        case = case_result.scalar_one_or_none()
+        judge_style = case.judge_style.value if case else "default"
+
         # LangGraph 실행
         initial_state: TrialState = {
             "case_id": case_id,
+            "judge_style": judge_style,
             "plaintiff_messages": plaintiff_messages,
             "defendant_messages": defendant_messages,
             "plaintiff_summary": "",
@@ -75,6 +81,10 @@ async def run_trial(case_id: str, db=None):
 
         final_state = await trial_graph.ainvoke(initial_state)
 
+        # ── 판결 완료 WebSocket 알림 ────────────────────────────
+        from app.core.trial_ws import trial_manager
+        await trial_manager.broadcast_done(case_id)
+
         # ── 1. 판결 DB 저장 ────────────────────────────────────
         verdict = Verdict(
             case_id=case_id,
@@ -87,8 +97,6 @@ async def run_trial(case_id: str, db=None):
         )
         db.add(verdict)
 
-        case_result = await db.execute(select(Case).where(Case.id == case_id))
-        case = case_result.scalar_one_or_none()
         if case:
             case.status = CaseStatus.JUDGED
 

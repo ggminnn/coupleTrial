@@ -9,6 +9,7 @@ import CasesPage from "./pages/CasesPage";
 import NewCasePage from "./pages/NewCasePage";
 import ChatPage from "./pages/ChatPage";
 import VerdictPage from "./pages/VerdictPage";
+import StatsPage from "./pages/StatsPage";
 import JoinPage from "./pages/JoinPage";
 
 function PrivateRoute({ children }) {
@@ -32,6 +33,7 @@ function App() {
           <Route path="/cases/new" element={<PrivateRoute><NewCasePage /></PrivateRoute>} />
           <Route path="/cases/:id/chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
           <Route path="/cases/:id/verdict" element={<PrivateRoute><VerdictPage /></PrivateRoute>} />
+          <Route path="/stats/:caseId" element={<PrivateRoute><StatsPage /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/cases" replace />} />
         </Routes>
       </BrowserRouter>

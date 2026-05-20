@@ -17,7 +17,9 @@ async def create_case(
     current_user: User = Depends(get_current_user),
 ):
     """사건 생성 (원고가 만들고 invite_token을 피고에게 공유)"""
-    case = Case(title=body.title, plaintiff_id=current_user.id)
+    from app.models import JudgeStyle
+    style = JudgeStyle.SPICY if body.judgeStyle == "spicy" else JudgeStyle.DEFAULT
+    case = Case(title=body.title, plaintiff_id=current_user.id, judge_style=style)
     db.add(case)
     await db.flush()
     return case

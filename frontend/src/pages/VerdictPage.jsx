@@ -3,7 +3,9 @@ import { useParams, Link } from "react-router-dom";
 import Layout from "../components/Layout";
 import { useAuth } from "../contexts/AuthContext";
 import api from "../lib/api";
-import { Scale, Trophy, Target, Heart, Clock } from "lucide-react";
+import { Scale, Trophy, Target, Heart } from "lucide-react";
+
+const TOTAL_STEPS = 6;
 
 function RatioBar({ plaintiff, defendant }) {
   return (
@@ -34,77 +36,126 @@ function RatioBar({ plaintiff, defendant }) {
   );
 }
 
+function ProgressScreen({ step, message }) {
+  const pct = step > 0 ? Math.round((step / TOTAL_STEPS) * 100) : 4;
+
+  return (
+    <Layout>
+      <div className="max-w-lg mx-auto text-center py-20 animate-slide-up">
+        <Scale className="w-16 h-16 text-gold mx-auto mb-6 animate-gavel" />
+        <h2 className="font-serif text-2xl text-ink mb-2">AI 판사 심의 중</h2>
+        <p className="text-gold font-sans font-semibold text-base mb-8 min-h-[1.5rem]">
+          {message}
+        </p>
+
+        {/* 프로그레스 바 */}
+        <div className="bg-cream rounded-full h-3 overflow-hidden mb-4 mx-4">
+          <div
+            className="bg-gold h-full rounded-full transition-all duration-700 ease-out"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+
+        {/* 단계 도트 */}
+        <div className="flex justify-center gap-2 mb-6">
+          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+            <div
+              key={i}
+              className={`w-2 h-2 rounded-full transition-colors duration-500 ${
+                i < step ? "bg-gold" : "bg-gold/20"
+              }`}
+            />
+          ))}
+        </div>
+
+        <p className="text-xs text-ink/30 font-sans">
+          {step > 0 ? `${step} / ${TOTAL_STEPS} 단계 완료` : "시작 중..."}
+        </p>
+      </div>
+    </Layout>
+  );
+}
+
 export default function VerdictPage() {
   const { id } = useParams();
   const { user } = useAuth();
   const [verdict, setVerdict] = useState(null);
   const [similar, setSimilar] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [caseData, setCaseData] = useState(null);
+  const [progressStep, setProgressStep] = useState(0);
+  const [progressMsg, setProgressMsg] = useState("판결 준비 중...");
 
   useEffect(() => {
     let cancelled = false;
-    let attempts = 0;
-    const MAX_ATTEMPTS = 30; // 최대 30초 대기
+    let ws = null;
 
-    const poll = async () => {
+    const loadVerdict = async () => {
       try {
         const [caseRes, verdictRes] = await Promise.all([
           api.get(`/cases/${id}`),
           api.get(`/verdicts/${id}`),
         ]);
-        if (cancelled) return;
+        if (cancelled) return true;
         setCaseData(caseRes.data);
         setVerdict(verdictRes.data);
-        setLoading(false);
-
-        // 유사 사건 비동기 로드
-        api.get(`/verdicts/${id}/similar`)
+        api
+          .get(`/verdicts/${id}/similar`)
           .then((res) => { if (!cancelled) setSimilar(res.data.similar_cases || []); })
           .catch(() => {});
-      } catch (e) {
-        if (cancelled) return;
-        attempts++;
-        if (e.response?.status === 404 && attempts < MAX_ATTEMPTS) {
-          // 판결 아직 준비 안 됨 → 1초 후 재시도
-          setTimeout(poll, 1000);
-        } else {
-          setLoading(false);
-        }
+        return true;
+      } catch {
+        return false;
       }
     };
 
-    poll();
-    return () => { cancelled = true; };
+    const connectWs = () => {
+      const token = localStorage.getItem("token");
+      const apiBase = import.meta.env.VITE_API_URL || "http://localhost:8000";
+      const wsBase = apiBase.replace(/^http/, "ws");
+      ws = new WebSocket(`${wsBase}/ws/trial/${id}?token=${token}`);
+
+      ws.onmessage = (e) => {
+        if (cancelled) return;
+        const data = JSON.parse(e.data);
+        if (data.type === "progress") {
+          setProgressStep(data.step);
+          setProgressMsg(data.message);
+        } else if (data.type === "done") {
+          setProgressStep(TOTAL_STEPS);
+          setProgressMsg("✅ 판결 완료!");
+          setTimeout(() => loadVerdict(), 600);
+        }
+      };
+
+      ws.onerror = () => {
+        // WebSocket 실패 시 폴링으로 폴백
+        if (cancelled) return;
+        const poll = () => {
+          loadVerdict().then((loaded) => {
+            if (!loaded && !cancelled) setTimeout(poll, 2000);
+          });
+        };
+        setTimeout(poll, 2000);
+      };
+    };
+
+    // 이미 판결 완료된 경우 즉시 로드, 아니면 WebSocket 연결
+    loadVerdict().then((loaded) => {
+      if (!loaded && !cancelled) connectWs();
+    });
+
+    return () => {
+      cancelled = true;
+      ws?.close();
+    };
   }, [id]);
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="text-center py-20">
-          <Scale className="w-16 h-16 text-gold mx-auto mb-4 animate-gavel" />
-          <p className="font-serif text-xl text-ink">판결문을 작성 중입니다...</p>
-          <p className="text-ink/40 text-sm font-sans mt-2">AI 판사가 심의 중이에요</p>
-        </div>
-      </Layout>
-    );
-  }
-
+  // 판결 로드 전: 진행 상태 화면
   if (!verdict) {
-    return (
-      <Layout>
-        <div className="text-center py-20">
-          <Clock className="w-16 h-16 text-gold/40 mx-auto mb-4" />
-          <p className="font-serif text-xl text-ink/60">아직 판결이 나지 않았습니다</p>
-          <p className="text-ink/40 text-sm font-sans mt-2">상대방의 제출을 기다리는 중이에요</p>
-          <Link to="/cases" className="inline-block mt-6 text-gold font-sans text-sm hover:underline">
-            ← 목록으로
-          </Link>
-        </div>
-      </Layout>
-    );
+    return <ProgressScreen step={progressStep} message={progressMsg} />;
   }
 
+  // 판결 완료 화면
   const isPlaintiff = caseData?.plaintiff_id === user?.id;
   const myRatio = isPlaintiff ? verdict.plaintiff_ratio : verdict.defendant_ratio;
   const isWinner = myRatio < 50;
@@ -202,8 +253,15 @@ export default function VerdictPage() {
         )}
 
         <Link
+          to={`/stats/${id}`}
+          className="block w-full text-center bg-ink hover:bg-ink-light text-gold font-serif font-bold py-3.5 rounded-xl transition-colors text-base tracking-wide"
+        >
+          📊 우리 통계 보기
+        </Link>
+
+        <Link
           to="/cases"
-          className="block text-center text-gold font-sans text-sm hover:underline py-4"
+          className="block text-center text-gold font-sans text-sm hover:underline py-2"
         >
           ← 목록으로 돌아가기
         </Link>

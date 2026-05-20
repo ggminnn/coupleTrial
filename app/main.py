@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.database import init_db
 from app.routers import auth, cases, chat, verdict
+from app.routers import trial_ws, stats
 
 import app.models  # noqa
 import app.services.similarity  # noqa - VerdictEmbedding을 Base.metadata에 등록
@@ -35,6 +36,8 @@ app.include_router(auth.router)
 app.include_router(cases.router)
 app.include_router(chat.router)
 app.include_router(verdict.router)
+app.include_router(trial_ws.router)
+app.include_router(stats.router)
 
 
 @app.get("/")

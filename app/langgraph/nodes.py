@@ -83,6 +83,8 @@ llm_with_tools = ChatOpenAI(model="gpt-4o", temperature=0.3).bind_tools(
 # ── 노드 1: 감정 분석 ───────────────────────────────────────
 async def analyze_emotion(state: TrialState) -> TrialState:
     """양측 메시지에서 감정 상태를 분석한다"""
+    from app.core.trial_ws import trial_manager
+    await trial_manager.broadcast(state["case_id"], 1, 6, "⚖️ 감정 분석 중...")
 
     prompt = ChatPromptTemplate.from_template("""
 당신은 커플 심리 전문가입니다.
@@ -114,6 +116,8 @@ async def analyze_emotion(state: TrialState) -> TrialState:
 # ── 노드 2: 사실관계 정리 + 주장 요약 ──────────────────────
 async def summarize_facts(state: TrialState) -> TrialState:
     """양측 주장을 요약하고 핵심 쟁점을 추출한다"""
+    from app.core.trial_ws import trial_manager
+    await trial_manager.broadcast(state["case_id"], 2, 6, "📋 사실 정리 중...")
 
     prompt = ChatPromptTemplate.from_template("""
 당신은 법원 서기입니다. 아래 원고와 피고의 주장을 읽고 정리해주세요.
@@ -156,33 +160,22 @@ async def judge(state: TrialState) -> TrialState:
     판례를 참고해서 판결문을 작성한다. (Tool Use + RAG)
     """
 
-    system_prompt = """당신은 20년 경력의 커플 전문 판사입니다.
-판결 전에 반드시 search_similar_verdicts 도구를 호출해서 유사 판례를 확인하세요.
-판례를 참고하여 일관성 있는 판결을 내려야 합니다."""
+    from app.core.trial_ws import trial_manager
+    await trial_manager.broadcast(state["case_id"], 3, 6, "🔍 유사 판례 검색 중...")
 
-    user_prompt = f"""아래 사건을 검토하고 판결해주세요.
+    if state.get("judge_style") == "spicy":
+        from app.langgraph.prompts.judge_spicy_prompt import SYSTEM_PROMPT, build_user_prompt
+    else:
+        from app.langgraph.prompts.judge_default_prompt import SYSTEM_PROMPT, build_user_prompt
 
-[원고 주장 요약]
-{state["plaintiff_summary"]}
-
-[피고 주장 요약]
-{state["defendant_summary"]}
-
-[핵심 쟁점]
-{chr(10).join(state["key_issues"])}
-
-[원고 감정 상태]
-{state["plaintiff_emotion"]}
-
-[피고 감정 상태]
-{state["defendant_emotion"]}
-
-판결문 형식:
-- 참고한 유사 판례 언급
-- 각 쟁점에 대한 판단
-- 누가 더 잘못했는지 명확히 판단
-- "본 재판부는 ~ 판단하는 바이다" 말투
-- 200자 내외"""
+    system_prompt = SYSTEM_PROMPT
+    user_prompt = build_user_prompt(
+        state["plaintiff_summary"],
+        state["defendant_summary"],
+        state["key_issues"],
+        state["plaintiff_emotion"],
+        state["defendant_emotion"],
+    )
 
     messages = [
         SystemMessage(content=system_prompt),
@@ -197,11 +190,9 @@ async def judge(state: TrialState) -> TrialState:
     if response.tool_calls:
         for tool_call in response.tool_calls:
             if tool_call["name"] == "search_similar_verdicts":
-                # 도구 실행
                 tool_result = await search_similar_verdicts.ainvoke(
                     tool_call["args"]["query"]
                 )
-                # 도구 결과를 메시지에 추가
                 from langchain_core.messages import ToolMessage
                 messages.append(
                     ToolMessage(
@@ -210,11 +201,12 @@ async def judge(state: TrialState) -> TrialState:
                     )
                 )
 
-        # 2차 호출: 판례 검색 결과를 반영해서 최종 판결문 작성
+        # 2차 호출 전: 판결 작성 단계 알림
+        await trial_manager.broadcast(state["case_id"], 4, 6, "⚖️ 판결 중...")
         final_response = await llm_with_tools.ainvoke(messages)
         judgment = final_response.content
     else:
-        # 도구 호출 없이 바로 판결 (판례 없을 때)
+        await trial_manager.broadcast(state["case_id"], 4, 6, "⚖️ 판결 중...")
         judgment = response.content
 
     return {**state, "judgment": judgment}
@@ -223,6 +215,8 @@ async def judge(state: TrialState) -> TrialState:
 # ── 노드 4: 잘못 비율 판정 ─────────────────────────────────
 async def determine_ratio(state: TrialState) -> TrialState:
     """판결문을 기반으로 잘못 비율을 수치화한다"""
+    from app.core.trial_ws import trial_manager
+    await trial_manager.broadcast(state["case_id"], 5, 6, "📊 잘못 비율 계산 중...")
 
     prompt = ChatPromptTemplate.from_template("""
 아래 판결문을 읽고 원고와 피고의 잘못 비율을 숫자로만 판단하세요.
@@ -254,6 +248,8 @@ JSON만 출력하세요:
 # ── 노드 5: 화해미션 생성 ──────────────────────────────────
 async def generate_missions(state: TrialState) -> TrialState:
     """판결 결과를 바탕으로 화해미션을 생성한다"""
+    from app.core.trial_ws import trial_manager
+    await trial_manager.broadcast(state["case_id"], 6, 6, "🤝 화해 미션 생성 중...")
 
     prompt = ChatPromptTemplate.from_template("""
 커플 상담 전문가로서, 아래 판결 결과를 바탕으로

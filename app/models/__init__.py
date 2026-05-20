@@ -18,6 +18,11 @@ class Role(str, enum.Enum):
     DEFENDANT = "defendant"    # 피고
 
 
+class JudgeStyle(str, enum.Enum):
+    DEFAULT = "default"        # 기본 판사 - 공정하고 차분한 톤
+    SPICY = "spicy"            # 매운맛 판사 - 직설적이고 독설 톤
+
+
 # ── User ───────────────────────────────────────────────────
 class User(Base):
     __tablename__ = "users"
@@ -45,6 +50,8 @@ class Case(Base):
 
     plaintiff_submitted: Mapped[bool] = mapped_column(default=False)  # 원고 제출 여부
     defendant_submitted: Mapped[bool] = mapped_column(default=False)  # 피고 제출 여부
+
+    judge_style: Mapped[JudgeStyle] = mapped_column(Enum(JudgeStyle), default=JudgeStyle.DEFAULT, nullable=False)
 
     invite_token: Mapped[str] = mapped_column(String, unique=True, default=lambda: str(uuid.uuid4()))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

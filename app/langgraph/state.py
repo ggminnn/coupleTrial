@@ -3,6 +3,7 @@ from typing import TypedDict
 
 class TrialState(TypedDict):
     case_id: str
+    judge_style: str                  # 판사 스타일 (default / spicy)
 
     # 입력 데이터
     plaintiff_messages: list[str]    # 원고 메시지 목록

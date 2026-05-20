@@ -4,10 +4,30 @@ import Layout from "../components/Layout";
 import api from "../lib/api";
 import { Scale, Copy, Check } from "lucide-react";
 
+const JUDGE_STYLES = [
+  {
+    value: "default",
+    label: "기본 판사",
+    emoji: "⚖️",
+    desc: "공정하고 차분한 톤으로 판결합니다",
+    cardClass: "border-gold/40 bg-white",
+    selectedClass: "border-gold bg-gold/5 ring-2 ring-gold/30",
+  },
+  {
+    value: "spicy",
+    label: "매운맛 판사",
+    emoji: "🌶️",
+    desc: "직설적이고 독설 넘치는 판결을 내립니다",
+    cardClass: "border-red-200 bg-white",
+    selectedClass: "border-red-400 bg-red-50 ring-2 ring-red-300/40",
+  },
+];
+
 export default function NewCasePage() {
   const [title, setTitle] = useState("");
+  const [judgeStyle, setJudgeStyle] = useState("default");
   const [loading, setLoading] = useState(false);
-  const [created, setCreated] = useState(null); // 생성된 사건
+  const [created, setCreated] = useState(null);
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
@@ -15,7 +35,7 @@ export default function NewCasePage() {
     if (!title.trim()) return;
     setLoading(true);
     try {
-      const res = await api.post("/cases", { title });
+      const res = await api.post("/cases", { title, judgeStyle });
       setCreated(res.data);
     } finally {
       setLoading(false);
@@ -33,6 +53,7 @@ export default function NewCasePage() {
   };
 
   if (created) {
+    const selectedStyle = JUDGE_STYLES.find((s) => s.value === created.judge_style);
     return (
       <Layout>
         <div className="max-w-lg mx-auto text-center animate-slide-up">
@@ -45,6 +66,11 @@ export default function NewCasePage() {
           <div className="verdict-card mb-6">
             <p className="font-serif text-lg text-ink mb-1">{created.title}</p>
             <p className="text-ink/40 text-xs font-sans">사건번호: {created.id.slice(0, 8).toUpperCase()}</p>
+            {selectedStyle && (
+              <p className="text-ink/50 text-xs font-sans mt-2">
+                {selectedStyle.emoji} {selectedStyle.label}
+              </p>
+            )}
           </div>
 
           {/* 초대 링크 */}
@@ -98,6 +124,29 @@ export default function NewCasePage() {
               maxLength={50}
             />
             <p className="text-right text-xs text-ink/30 mt-1 font-sans">{title.length}/50</p>
+          </div>
+
+          {/* 판사 스타일 선택 */}
+          <div className="mb-6">
+            <label className="block text-xs font-bold text-ink/60 mb-3 uppercase tracking-wider">
+              판사 스타일
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              {JUDGE_STYLES.map((style) => (
+                <button
+                  key={style.value}
+                  type="button"
+                  onClick={() => setJudgeStyle(style.value)}
+                  className={`border-2 rounded-xl p-4 text-left transition-all ${
+                    judgeStyle === style.value ? style.selectedClass : style.cardClass
+                  }`}
+                >
+                  <span className="text-2xl block mb-1">{style.emoji}</span>
+                  <p className="font-serif text-sm font-bold text-ink">{style.label}</p>
+                  <p className="text-xs text-ink/50 font-sans mt-1 leading-tight">{style.desc}</p>
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="bg-cream rounded-xl p-4 mb-6 text-sm text-ink/60 font-sans space-y-2">
