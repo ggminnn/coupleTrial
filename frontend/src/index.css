@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-cream font-sans text-ink;
+  }
+
+  h1, h2, h3 {
+    @apply font-serif;
+  }
+}
+
+@layer components {
+  /* 법원 느낌의 구분선 */
+  .court-divider {
+    @apply flex items-center gap-4 my-6;
+  }
+  .court-divider::before,
+  .court-divider::after {
+    content: "";
+    @apply flex-1 h-px bg-gold/30;
+  }
+
+  /* 도장 느낌 배지 */
+  .stamp {
+    @apply inline-flex items-center px-3 py-1 rounded border-2 font-serif text-sm font-bold tracking-widest uppercase;
+  }
+
+  /* 판결문 카드 */
+  .verdict-card {
+    @apply bg-cream-dark border border-gold/40 rounded-lg p-6 shadow-inner;
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 27px,
+      rgba(201, 168, 76, 0.1) 27px,
+      rgba(201, 168, 76, 0.1) 28px
+    );
+  }
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f5f0e8; }
+::-webkit-scrollbar-thumb { background: #c9a84c40; border-radius: 3px; }
